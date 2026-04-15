@@ -73,12 +73,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\Gpu\Renderer.cpp" />
+    <ClCompile Include="Source\Gpu\SwapChain.cpp" />
     <ClCompile Include="Source\Gpu\VulkanContext.cpp" />
     <ClCompile Include="Source\Main.cpp" />
     <ClCompile Include="Source\Platform\Win32Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Include\Common\Types.hpp" />
+    <ClInclude Include="Include\Gpu\Renderer.hpp" />
+    <ClInclude Include="Include\Gpu\SwapChain.hpp" />
     <ClInclude Include="Include\Gpu\VulkanContext.hpp" />
     <ClInclude Include="Include\Platform\Win32Window.hpp" />
   </ItemGroup>

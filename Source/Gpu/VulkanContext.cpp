@@ -253,7 +253,7 @@ namespace Anvil::Gpu
           m_QueueFamilyIndex = i;
 
           std::cout << std::format(
-            "[Anvil] Selected GPU: {} (queue family {})\n",
+            "[Anvil] Selected GPU: {} (queue family {}).\n",
             properties.deviceName, i );
           return;
         }
