@@ -91,46 +91,46 @@ namespace Anvil::Gpu
 
   void VulkanContext::CreateDebugMessenger()
   {
-    if constexpr ( !IsValidationEnabled )
+    if constexpr ( IsValidationEnabled )
     {
-      return;
+      const VkDebugUtilsMessengerCreateInfoEXT createInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                           VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                           VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                       VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                       VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = DebugCallback };
+
+      auto Create = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+        vkGetInstanceProcAddr( m_Instance, "vkCreateDebugUtilsMessengerEXT" ) );
+
+      if ( !Create )
+      {
+        std::cerr << "[Anvil] Debug messenger extension not available.\n";
+        return;
+      }
+
+      const VkResult result =
+        Create( m_Instance, &createInfo, nullptr, &m_DebugMessenger );
+
+      if ( result != VK_SUCCESS )
+      {
+        std::cerr << "[Anvil] Failed to create debug messenger.\n";
+        return;
+      }
+
+      std::cout << "[Anvil] Debug messenger created.\n";
     }
 
-    const VkDebugUtilsMessengerCreateInfoEXT createInfo = {
-      .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-      .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-      .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-      .pfnUserCallback = DebugCallback };
-
-    auto Create = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-      vkGetInstanceProcAddr( m_Instance, "vkCreateDebugUtilsMessengerEXT" ) );
-
-    if ( !Create )
-    {
-      std::cerr << "[Anvil] Debug messenger extension not available.\n";
-      return;
-    }
-
-    const VkResult result =
-      Create( m_Instance, &createInfo, nullptr, &m_DebugMessenger );
-
-    if ( result != VK_SUCCESS )
-    {
-      std::cerr << "[Anvil] Failed to create debug messenger.\n";
-      return;
-    }
-
-    std::cout << "[Anvil] Debug messenger created.\n";
+    return;
   }
 
   VKAPI_ATTR VkBool32 VKAPI_CALL VulkanContext::DebugCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT       severity,
-    VkDebugUtilsMessageTypeFlagsEXT              types,
-    const VkDebugUtilsMessengerCallbackDataEXT * data, void * userData )
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+    VkDebugUtilsMessageTypeFlagsEXT,
+    const VkDebugUtilsMessengerCallbackDataEXT * data, void * )
   {
     const c8 * level = "INFO";
 
@@ -238,7 +238,7 @@ namespace Anvil::Gpu
       vkGetPhysicalDeviceQueueFamilyProperties( device, &queueFamilyCount,
                                                 queueFamilies.data() );
 
-      for ( usize i = 0; i < queueFamilyCount; ++i )
+      for ( u32 i = 0; i < queueFamilyCount; ++i )
       {
         const bool isGraphicsSupported =
           queueFamilies.at( i ).queueFlags & VK_QUEUE_GRAPHICS_BIT;
