@@ -2,13 +2,14 @@
 #include <iostream>
 
 #include "Platform/Win32Window.hpp"
+#include "Gpu/VulkanContext.hpp"
 
 int main()
 {
   try
   {
     Anvil::Platform::Win32Window window;
-    std::cout << "Hello, world!" << std::endl;
+    Anvil::Gpu::VulkanContext    gpu( window.GetHandle(), window.GetInstance() );
 
     while ( window.PollEvents() )
     {

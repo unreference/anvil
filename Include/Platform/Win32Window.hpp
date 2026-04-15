@@ -18,13 +18,10 @@ namespace Anvil::Platform
   class Win32Window
   {
   public:
+    ANVIL_NO_COPY_NO_MOVE( Win32Window );
+
     explicit Win32Window( const WindowConfig & config = {} );
     ~Win32Window();
-
-    Win32Window( const Win32Window & )             = delete;
-    Win32Window & operator=( const Win32Window & ) = delete;
-    Win32Window( Win32Window && )                  = delete;
-    Win32Window & operator=( Win32Window && )      = delete;
 
     // Pumps the Win32 message queue.
     // Returns false when the window should close.
@@ -66,9 +63,9 @@ namespace Anvil::Platform
 
     HWND      m_Window = nullptr;
     HINSTANCE m_Instance;
-    u32       m_Width       = 0;
-    u32       m_Height      = 0;
-    bool      m_IsResized   = false;
-    bool      m_ShouldClose = false;
+    u32       m_Width     = 0;
+    u32       m_Height    = 0;
+    bool      m_IsResized = false;
+    bool      m_IsClosed  = false;
   };
 } // namespace Anvil::Platform

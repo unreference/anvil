@@ -21,12 +21,18 @@
     <ClCompile Include="Source\Platform\Win32Window.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Gpu\VulkanContext.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Include\Common\Types.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\Platform\Win32Window.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\Gpu\VulkanContext.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

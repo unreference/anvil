@@ -62,7 +62,7 @@ namespace Anvil::Platform
     {
       if ( msg.message == WM_QUIT )
       {
-        m_ShouldClose = true;
+        m_IsClosed = true;
         return false;
       }
 
@@ -70,7 +70,7 @@ namespace Anvil::Platform
       DispatchMessageW( &msg );
     }
 
-    return !m_ShouldClose;
+    return !m_IsClosed;
   }
 
   LRESULT CALLBACK Win32Window::WindowProc( HWND hwnd, UINT msg, WPARAM wp,
@@ -116,7 +116,7 @@ namespace Anvil::Platform
 
       case WM_CLOSE:
       {
-        window->m_ShouldClose = true;
+        window->m_IsClosed = true;
         return 0;
       }
 
