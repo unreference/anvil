@@ -152,12 +152,15 @@ namespace Anvil::Platform
         const auto width  = static_cast<u32>( LOWORD( lp ) );
         const auto height = static_cast<u32>( HIWORD( lp ) );
 
-        if ( width > 0 && height > 0 &&
-             ( width != window->m_Width || height != window->m_Height ) )
+        if ( width != window->m_Width || height != window->m_Height )
         {
           window->m_Width     = width;
           window->m_Height    = height;
-          window->m_IsResized = true;
+
+          if (width > 0 && height > 0)
+          {
+            window->m_IsResized = true;
+          }
         }
 
         if ( window->m_IsCursorCaptured )

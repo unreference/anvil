@@ -27,7 +27,8 @@ set(ANVIL_SOURCES
         Source/Gpu/SwapChain.cpp
         Source/Gpu/VulkanContext.cpp
         Source/Platform/Win32Window.cpp
-        Source/Game/FreeCamera.cpp
+        Source/Gameplay/FreeCamera.cpp
+        Source/Core/Game.cpp
 )
 
 set(ANVIL_HEADERS
@@ -40,9 +41,10 @@ set(ANVIL_HEADERS
         Include/Math/Vec4.hpp
         Include/Math/Mat4.hpp
         Include/Math/Transforms.hpp
-        Include/Game/CameraInput.hpp
-        Include/Game/FreeCamera.hpp
+        Include/Gameplay/CameraInput.hpp
+        Include/Gameplay/FreeCamera.hpp
         Include/Math/Vec2.hpp
+        Include/Core/Game.hpp
 )
 
 add_executable(Anvil ${ANVIL_SOURCES} ${ANVIL_HEADERS})

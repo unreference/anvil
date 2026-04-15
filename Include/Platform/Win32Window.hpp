@@ -28,7 +28,6 @@ namespace Anvil::Platform
     // Pumps the Win32 message queue.
     // Returns false when the window should close.
     bool PollEvents();
-
     void ResetFrameInput();
 
     [[nodiscard]] bool IsKeyDown( u32 code ) const
@@ -66,6 +65,11 @@ namespace Anvil::Platform
     [[nodiscard]] u32 GetHeight() const
     {
       return m_Height;
+    }
+
+    [[nodiscard]] bool IsMinimized() const
+    {
+      return m_Width == 0 || m_Height == 0;
     }
 
     [[nodiscard]] bool IsResized() const

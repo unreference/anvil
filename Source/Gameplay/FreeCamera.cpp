@@ -1,10 +1,10 @@
 #include <numbers>
 #include <algorithm>
 
-#include "Game/FreeCamera.hpp"
+#include "Gameplay/FreeCamera.hpp"
 #include "Math/Transforms.hpp"
 
-namespace Anvil::Game
+namespace Anvil::Gameplay
 {
   static constexpr f32 MaxPitch = std::numbers::pi_v<f32> / 2.0f - 0.01f;
 

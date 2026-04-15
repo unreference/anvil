@@ -2,7 +2,7 @@
 
 #include "Common/Types.hpp"
 
-namespace Anvil::Game
+namespace Anvil::Gameplay
 {
   struct CameraInput
   {

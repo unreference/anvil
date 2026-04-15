@@ -5,7 +5,7 @@
 #include "CameraInput.hpp"
 #include "Math/Mat4.hpp"
 
-namespace Anvil::Game
+namespace Anvil::Gameplay
 {
   class FreeCamera
   {
