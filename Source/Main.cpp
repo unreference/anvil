@@ -1,6 +1,7 @@
 #include <exception>
 #include <iostream>
 
+#include "Common/Version.hpp"
 #include "Platform/Win32Window.hpp"
 #include "Gpu/VulkanContext.hpp"
 #include "Gpu/SwapChain.hpp"
@@ -10,7 +11,17 @@ int main()
 {
   try
   {
-    Anvil::Platform::Win32Window window;
+#ifdef _DEBUG
+    static constexpr const Anvil::c16 * ConfigName = L"Debug";
+#else
+    static constexpr const Anvil::c16 * ConfigName = L"Release";
+#endif
+
+    const std::wstring title = std::format(
+      L"Toontown v{}.{}.{}.{} ({})", Anvil::VersionMajor, Anvil::VersionMinor,
+      Anvil::VersionPatch, Anvil::BuildNumber, ConfigName );
+
+    Anvil::Platform::Win32Window window( { .m_Title = title } );
     Anvil::Gpu::VulkanContext    gpu( window.GetHandle(), window.GetInstance() );
     Anvil::Gpu::SwapChain        swapChain( gpu, window.GetWidth(),
                                             window.GetHeight() );

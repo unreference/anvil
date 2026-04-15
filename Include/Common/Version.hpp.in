@@ -1,0 +1,14 @@
+#pragma once
+
+#include "Common/Types.hpp"
+
+namespace Anvil
+{
+  static constexpr u32 VersionMajor = @PROJECT_VERSION_MAJOR@;
+  static constexpr u32 VersionMinor = @PROJECT_VERSION_MINOR@;
+  static constexpr u32 VersionPatch = @PROJECT_VERSION_PATCH@;
+  static constexpr u32 BuildNumber  = @ANVIL_BUILD_NUMBER@;
+
+  static constexpr const c8 * VersionString =
+    "@PROJECT_VERSION@.@ANVIL_BUILD_NUMBER@";
+} // namespace Anvil
