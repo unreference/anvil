@@ -3,8 +3,10 @@
 #include <Windows.h>
 
 #include <string_view>
+#include <array>
 
 #include "Common/Types.hpp"
+#include "Math/Vec2.hpp"
 
 namespace Anvil::Platform
 {
@@ -26,6 +28,25 @@ namespace Anvil::Platform
     // Pumps the Win32 message queue.
     // Returns false when the window should close.
     bool PollEvents();
+
+    void ResetFrameInput();
+
+    [[nodiscard]] bool IsKeyDown( u32 code ) const
+    {
+      return m_KeyState.at( code );
+    }
+
+    [[nodiscard]] Math::Vec2 GetMouseDelta() const
+    {
+      return m_MouseDelta;
+    }
+
+    void SetCursorCaptured( bool isCaptured );
+
+    [[nodiscard]] bool IsCursorCaptured() const
+    {
+      return m_IsCursorCaptured;
+    }
 
     [[nodiscard]] HWND GetHandle() const
     {
@@ -57,9 +78,17 @@ namespace Anvil::Platform
       m_IsResized = false;
     }
 
+    void SetTitle( const std::wstring_view title )
+    {
+      SetWindowTextW( m_Window, title.data() );
+    }
+
   private:
     static LRESULT CALLBACK WindowProc( HWND hwnd, UINT msg, WPARAM wp,
                                         LPARAM lp );
+
+    void RegisterRawInput();
+    void ClipCursorToWindow();
 
     HWND      m_Window = nullptr;
     HINSTANCE m_Instance;
@@ -67,5 +96,9 @@ namespace Anvil::Platform
     u32       m_Height    = 0;
     bool      m_IsResized = false;
     bool      m_IsClosed  = false;
+
+    std::array<bool, 256> m_KeyState         = {};
+    Math::Vec2            m_MouseDelta       = {};
+    bool                  m_IsCursorCaptured = false;
   };
 } // namespace Anvil::Platform

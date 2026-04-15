@@ -42,11 +42,17 @@ namespace Anvil::Platform
       throw std::runtime_error( "Failed to create window." );
     }
 
+    RegisterRawInput();
     ShowWindow( m_Window, SW_SHOW );
   }
 
   Win32Window::~Win32Window()
   {
+    if ( m_IsCursorCaptured )
+    {
+      SetCursorCaptured( false );
+    }
+
     if ( m_Window )
     {
       DestroyWindow( m_Window );
@@ -71,6 +77,49 @@ namespace Anvil::Platform
     }
 
     return !m_IsClosed;
+  }
+  void Win32Window::ResetFrameInput()
+  {
+    m_MouseDelta = {};
+  }
+  void Win32Window::SetCursorCaptured( bool isCaptured )
+  {
+    m_IsCursorCaptured = isCaptured;
+
+    if ( isCaptured )
+    {
+      ShowCursor( FALSE );
+      ClipCursorToWindow();
+    }
+    else
+    {
+      ShowCursor( TRUE );
+      ClipCursor( nullptr );
+    }
+  }
+  void Win32Window::RegisterRawInput()
+  {
+    // Raw mouse input avoids cursor clamping and OS acceleration.
+    const RAWINPUTDEVICE rid = { .usUsagePage = 0x01,
+                                 .usUsage     = 0x02,
+                                 .dwFlags     = 0,
+                                 .hwndTarget  = m_Window };
+
+    RegisterRawInputDevices( &rid, 1, sizeof( rid ) );
+  }
+  void Win32Window::ClipCursorToWindow()
+  {
+    RECT clientRect;
+    GetClientRect( m_Window, &clientRect );
+
+    POINT topLeft     = { clientRect.left, clientRect.top };
+    POINT bottomRight = { clientRect.right, clientRect.bottom };
+    ClientToScreen( m_Window, &topLeft );
+    ClientToScreen( m_Window, &bottomRight );
+
+    const RECT screenRect = { topLeft.x, topLeft.y, bottomRight.x,
+                              bottomRight.y };
+    ClipCursor( &screenRect );
   }
 
   LRESULT CALLBACK Win32Window::WindowProc( HWND hwnd, UINT msg, WPARAM wp,
@@ -109,6 +158,52 @@ namespace Anvil::Platform
           window->m_Width     = width;
           window->m_Height    = height;
           window->m_IsResized = true;
+        }
+
+        if ( window->m_IsCursorCaptured )
+        {
+          window->ClipCursorToWindow();
+        }
+
+        return 0;
+      }
+
+      case WM_KEYDOWN:
+      {
+        if ( wp < window->m_KeyState.size() )
+        {
+          window->m_KeyState.at( wp ) = true;
+        }
+
+        return 0;
+      }
+
+      case WM_KEYUP:
+      {
+        if ( wp < window->m_KeyState.size() )
+        {
+          window->m_KeyState.at( wp ) = false;
+        }
+
+        return 0;
+      }
+
+      case WM_INPUT:
+      {
+        if ( !window->m_IsCursorCaptured )
+        {
+          break;
+        }
+
+        UINT     size = sizeof( RAWINPUT );
+        RAWINPUT raw  = {};
+        GetRawInputData( reinterpret_cast<HRAWINPUT>( lp ), RID_INPUT, &raw,
+                         &size, sizeof( RAWINPUTHEADER ) );
+
+        if ( raw.header.dwType == RIM_TYPEMOUSE )
+        {
+          window->m_MouseDelta.m_X += static_cast<f32>( raw.data.mouse.lLastX );
+          window->m_MouseDelta.m_Y += static_cast<f32>( raw.data.mouse.lLastY );
         }
 
         return 0;
