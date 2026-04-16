@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include <vulkan/vulkan.h>
 
 #include "Common/Types.hpp"
@@ -13,6 +15,12 @@ namespace Anvil::Gpu
 
     VulkanContext( HWND window, HINSTANCE instance );
     ~VulkanContext();
+
+    // Records and submits a one-shot command buffer, then waits for completion.
+    // Used for transfer operations like texture and buffer uploads that happen
+    // outside the render loop.
+    void
+    SubmitOneShot( const std::function<void( VkCommandBuffer )> & record ) const;
 
     [[nodiscard]] VkInstance GetInstance() const
     {
@@ -44,25 +52,30 @@ namespace Anvil::Gpu
       return m_QueueFamilyIndex;
     }
 
+    [[nodiscard]] u32 FindMemoryType( u32                   typeFilter,
+                                      VkMemoryPropertyFlags properties ) const;
+
   private:
     void CreateInstance();
     void CreateDebugMessenger();
     void CreateSurface( HWND window, HINSTANCE instance );
     void SelectPhysicalDevice();
     void CreateDevice();
+    void CreateTransientCommandPool();
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
       VkDebugUtilsMessageSeverityFlagBitsEXT       severity,
       VkDebugUtilsMessageTypeFlagsEXT              types,
       const VkDebugUtilsMessengerCallbackDataEXT * data, void * userData );
 
-    VkInstance               m_Instance         = VK_NULL_HANDLE;
-    VkDebugUtilsMessengerEXT m_DebugMessenger   = VK_NULL_HANDLE;
-    VkSurfaceKHR             m_Surface          = VK_NULL_HANDLE;
-    VkPhysicalDevice         m_PhysicalDevice   = VK_NULL_HANDLE;
-    VkDevice                 m_Device           = VK_NULL_HANDLE;
-    VkQueue                  m_Queue            = VK_NULL_HANDLE;
-    u32                      m_QueueFamilyIndex = 0;
+    VkInstance               m_Instance             = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT m_DebugMessenger       = VK_NULL_HANDLE;
+    VkSurfaceKHR             m_Surface              = VK_NULL_HANDLE;
+    VkPhysicalDevice         m_PhysicalDevice       = VK_NULL_HANDLE;
+    VkDevice                 m_Device               = VK_NULL_HANDLE;
+    VkQueue                  m_Queue                = VK_NULL_HANDLE;
+    VkCommandPool            m_TransientCommandPool = VK_NULL_HANDLE;
+    u32                      m_QueueFamilyIndex     = 0;
 
 #ifdef _DEBUG
     static constexpr bool IsValidationEnabled = true;

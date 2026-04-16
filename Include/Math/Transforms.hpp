@@ -8,16 +8,17 @@
 
 namespace Anvil::Math
 {
-  inline Mat4 Perspective( f32 fovRadians, f32 aspect, f32 near, f32 far )
+  inline Mat4 Perspective( f32 fovRadians, f32 aspect, f32 nearPlane,
+                           f32 farPlane )
   {
     const f32 tanHalf = std::tan( fovRadians * 0.5f );
 
     Mat4 result;
     result.m_M.at( 0 ).at( 0 ) = 1.0f / ( aspect * tanHalf );
     result.m_M.at( 1 ).at( 1 ) = -1.0f / tanHalf;
-    result.m_M.at( 2 ).at( 2 ) = far / ( near - far );
+    result.m_M.at( 2 ).at( 2 ) = farPlane / ( nearPlane - farPlane );
     result.m_M.at( 2 ).at( 3 ) = -1.0f;
-    result.m_M.at( 3 ).at( 2 ) = near * far / ( near - far );
+    result.m_M.at( 3 ).at( 2 ) = nearPlane * farPlane / ( nearPlane - farPlane );
     return result;
   }
 

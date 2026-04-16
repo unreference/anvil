@@ -14,10 +14,16 @@ namespace Anvil::Gpu
     CreateSurface( window, instance );
     SelectPhysicalDevice();
     CreateDevice();
-  };
+    CreateTransientCommandPool();
+  }
 
   VulkanContext::~VulkanContext()
   {
+    if ( m_TransientCommandPool != VK_NULL_HANDLE )
+    {
+      vkDestroyCommandPool( m_Device, m_TransientCommandPool, nullptr );
+    }
+
     if ( m_Device != VK_NULL_HANDLE )
     {
       vkDeviceWaitIdle( m_Device );
@@ -31,12 +37,12 @@ namespace Anvil::Gpu
 
     if ( m_DebugMessenger != VK_NULL_HANDLE )
     {
-      auto Destroy = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+      auto destroy = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
         vkGetInstanceProcAddr( m_Instance, "vkDestroyDebugUtilsMessengerEXT" ) );
 
-      if ( Destroy )
+      if ( destroy )
       {
-        Destroy( m_Instance, m_DebugMessenger, nullptr );
+        destroy( m_Instance, m_DebugMessenger, nullptr );
       }
     }
 
@@ -44,6 +50,71 @@ namespace Anvil::Gpu
     {
       vkDestroyInstance( m_Instance, nullptr );
     }
+  }
+
+  void VulkanContext::SubmitOneShot(
+    const std::function<void( VkCommandBuffer )> & record ) const
+  {
+    const VkCommandBufferAllocateInfo allocInfo = {
+      .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .commandPool        = m_TransientCommandPool,
+      .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      .commandBufferCount = 1 };
+
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    vkAllocateCommandBuffers( m_Device, &allocInfo, &cmd );
+
+    const VkCommandBufferBeginInfo beginInfo = {
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT };
+
+    vkBeginCommandBuffer( cmd, &beginInfo );
+    record( cmd );
+    vkEndCommandBuffer( cmd );
+
+    const VkSubmitInfo submitInfo = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                                      .commandBufferCount = 1,
+                                      .pCommandBuffers    = &cmd };
+
+    vkQueueSubmit( m_Queue, 1, &submitInfo, VK_NULL_HANDLE );
+    vkQueueWaitIdle( m_Queue );
+    vkFreeCommandBuffers( m_Device, m_TransientCommandPool, 1, &cmd );
+  }
+
+  void VulkanContext::CreateTransientCommandPool()
+  {
+    const VkCommandPoolCreateInfo poolInfo = {
+      .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+      .flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+      .queueFamilyIndex = m_QueueFamilyIndex };
+
+    if ( vkCreateCommandPool( m_Device, &poolInfo, nullptr,
+                              &m_TransientCommandPool ) != VK_SUCCESS )
+    {
+      throw std::runtime_error( "Failed to create transient command pool." );
+    }
+  }
+
+  u32 VulkanContext::FindMemoryType( u32                   typeFilter,
+                                     VkMemoryPropertyFlags properties ) const
+  {
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+    vkGetPhysicalDeviceMemoryProperties( m_PhysicalDevice, &memoryProperties );
+
+    for ( u32 i = 0; i < memoryProperties.memoryTypeCount; ++i )
+    {
+      const bool isTypeMatch = ( typeFilter & 1 << i ) != 0;
+      const bool hasProperties =
+        ( memoryProperties.memoryTypes[ i ].propertyFlags & properties ) ==
+        properties;
+
+      if ( isTypeMatch && hasProperties )
+      {
+        return i;
+      }
+    }
+
+    throw std::runtime_error( "Failed to find suitable memory type." );
   }
 
   void VulkanContext::CreateInstance()

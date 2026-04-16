@@ -1,4 +1,6 @@
+#include <array>
 #include <iostream>
+#include <stdexcept>
 
 #include "Gpu/Renderer.hpp"
 #include "Gpu/VulkanContext.hpp"
@@ -15,12 +17,14 @@ namespace Anvil::Gpu
     CreateCommandPool();
     CreateFrameData();
     CreateImageSemaphores();
+    CreateDepthResources();
   }
 
   Renderer::~Renderer()
   {
     const auto device = m_Context.GetDevice();
 
+    DestroyDepthResources();
     DestroyImageSemaphores();
 
     for ( auto & frame : m_Frames )
@@ -98,7 +102,7 @@ namespace Anvil::Gpu
     std::cout << "[Anvil] Frame resources created.\n";
   }
 
-  bool Renderer::DrawFrame()
+  bool Renderer::DrawFrame( const DrawParams & params )
   {
     const auto device = m_Context.GetDevice();
     const auto queue  = m_Context.GetQueue();
@@ -122,7 +126,7 @@ namespace Anvil::Gpu
 
     RecordCommandBuffer( frame.m_CommandBuffer,
                          m_SwapChain.GetImages().at( imageIndex ),
-                         m_SwapChain.GetImageViews().at( imageIndex ) );
+                         m_SwapChain.GetImageViews().at( imageIndex ), params );
 
     // Index render-finished semaphore by swap chain image to avoid reuse while
     // the presentation engine holds it.
@@ -168,7 +172,8 @@ namespace Anvil::Gpu
   }
 
   void Renderer::RecordCommandBuffer( VkCommandBuffer cmd, VkImage image,
-                                      VkImageView view )
+                                      VkImageView        view,
+                                      const DrawParams & params )
   {
     const VkCommandBufferBeginInfo beginInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -176,28 +181,43 @@ namespace Anvil::Gpu
 
     vkBeginCommandBuffer( cmd, &beginInfo );
 
-    // Transition from whatever state to color attachment.
-    const VkImageMemoryBarrier2 toColorAttachment = {
-      .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-      .srcStageMask     = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-      .srcAccessMask    = 0,
-      .dstStageMask     = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-      .dstAccessMask    = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-      .oldLayout        = VK_IMAGE_LAYOUT_UNDEFINED,
-      .newLayout        = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-      .image            = image,
-      .subresourceRange = { .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                            .baseMipLevel   = 0,
-                            .levelCount     = 1,
-                            .baseArrayLayer = 0,
-                            .layerCount     = 1 } };
+    // Transition color image from whatever state to color attachment,
+    // and depth image from undefined to depth attachment.
+    const std::array<VkImageMemoryBarrier2, 2> preBarriers = {
+      { { .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+          .srcStageMask     = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+          .srcAccessMask    = 0,
+          .dstStageMask     = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+          .dstAccessMask    = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+          .oldLayout        = VK_IMAGE_LAYOUT_UNDEFINED,
+          .newLayout        = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+          .image            = image,
+          .subresourceRange = { .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                                .baseMipLevel   = 0,
+                                .levelCount     = 1,
+                                .baseArrayLayer = 0,
+                                .layerCount     = 1 } },
+        { .sType         = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+          .srcStageMask  = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+          .srcAccessMask = 0,
+          .dstStageMask  = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                          VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+          .dstAccessMask    = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+          .oldLayout        = VK_IMAGE_LAYOUT_UNDEFINED,
+          .newLayout        = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+          .image            = m_DepthImage,
+          .subresourceRange = { .aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT,
+                                .baseMipLevel   = 0,
+                                .levelCount     = 1,
+                                .baseArrayLayer = 0,
+                                .layerCount     = 1 } } } };
 
-    const VkDependencyInfo toColorDep = {
+    const VkDependencyInfo preDep = {
       .sType                   = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-      .imageMemoryBarrierCount = 1,
-      .pImageMemoryBarriers    = &toColorAttachment };
+      .imageMemoryBarrierCount = static_cast<u32>( preBarriers.size() ),
+      .pImageMemoryBarriers    = preBarriers.data() };
 
-    vkCmdPipelineBarrier2( cmd, &toColorDep );
+    vkCmdPipelineBarrier2( cmd, &preDep );
 
     const VkRenderingAttachmentInfo colorAttachment = {
       .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -207,14 +227,58 @@ namespace Anvil::Gpu
       .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
       .clearValue  = { .color = { { 0.36f, 0.67f, 0.93f, 1.0f } } } };
 
+    const VkRenderingAttachmentInfo depthAttachment = {
+      .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+      .imageView   = m_DepthView,
+      .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+      .loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR,
+      .storeOp     = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      .clearValue  = { .depthStencil = { 1.0f, 0 } } };
+
     const VkRenderingInfo renderingInfo = {
       .sType                = VK_STRUCTURE_TYPE_RENDERING_INFO,
       .renderArea           = { { 0, 0 }, m_SwapChain.GetExtent() },
       .layerCount           = 1,
       .colorAttachmentCount = 1,
-      .pColorAttachments    = &colorAttachment };
+      .pColorAttachments    = &colorAttachment,
+      .pDepthAttachment     = &depthAttachment };
 
     vkCmdBeginRendering( cmd, &renderingInfo );
+
+    // Dynamic viewport and scissor. Pipeline stays valid across resizes.
+    const auto extent = m_SwapChain.GetExtent();
+
+    const VkViewport viewport = { .x        = 0.0f,
+                                  .y        = 0.0f,
+                                  .width    = static_cast<f32>( extent.width ),
+                                  .height   = static_cast<f32>( extent.height ),
+                                  .minDepth = 0.0f,
+                                  .maxDepth = 1.0f };
+
+    const VkRect2D scissor = { .offset = { 0, 0 }, .extent = extent };
+
+    vkCmdSetViewport( cmd, 0, 1, &viewport );
+    vkCmdSetScissor( cmd, 0, 1, &scissor );
+
+    vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, params.m_Pipeline );
+
+    const std::array<VkDescriptorSet, 2> descriptorSets = {
+      params.m_SceneSet, params.m_MaterialSet };
+
+    vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                             params.m_PipelineLayout, 0,
+                             static_cast<u32>( descriptorSets.size() ),
+                             descriptorSets.data(), 0, nullptr );
+
+    const VkDeviceSize vertexOffset = 0;
+    vkCmdBindVertexBuffers( cmd, 0, 1, &params.m_VertexBuffer, &vertexOffset );
+    vkCmdBindIndexBuffer( cmd, params.m_IndexBuffer, 0, VK_INDEX_TYPE_UINT16 );
+
+    vkCmdPushConstants( cmd, params.m_PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
+                        0, sizeof( Math::Mat4 ), params.m_ModelMatrix.Data() );
+
+    vkCmdDrawIndexed( cmd, params.m_IndexCount, 1, 0, 0, 0 );
+
     vkCmdEndRendering( cmd );
 
     // Transition from color attachment to presentable.
@@ -244,8 +308,10 @@ namespace Anvil::Gpu
 
   void Renderer::OnSwapChainRecreated()
   {
+    DestroyDepthResources();
     DestroyImageSemaphores();
     CreateImageSemaphores();
+    CreateDepthResources();
   }
 
   void Renderer::CreateImageSemaphores()
@@ -278,5 +344,88 @@ namespace Anvil::Gpu
     }
 
     m_RenderFinished.clear();
+  }
+
+  void Renderer::CreateDepthResources()
+  {
+    const auto device = m_Context.GetDevice();
+    const auto extent = m_SwapChain.GetExtent();
+
+    const VkImageCreateInfo imageInfo = {
+      .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .imageType   = VK_IMAGE_TYPE_2D,
+      .format      = DepthFormat,
+      .extent      = { extent.width, extent.height, 1 },
+      .mipLevels   = 1,
+      .arrayLayers = 1,
+      .samples     = VK_SAMPLE_COUNT_1_BIT,
+      .tiling      = VK_IMAGE_TILING_OPTIMAL,
+      .usage       = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE };
+
+    if ( vkCreateImage( device, &imageInfo, nullptr, &m_DepthImage ) !=
+         VK_SUCCESS )
+    {
+      throw std::runtime_error( "Failed to create depth image." );
+    }
+
+    VkMemoryRequirements requirements;
+    vkGetImageMemoryRequirements( device, m_DepthImage, &requirements );
+
+    const u32 memoryType = m_Context.FindMemoryType(
+      requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
+
+    const VkMemoryAllocateInfo allocInfo = {
+      .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .allocationSize  = requirements.size,
+      .memoryTypeIndex = memoryType };
+
+    if ( vkAllocateMemory( device, &allocInfo, nullptr, &m_DepthMemory ) !=
+         VK_SUCCESS )
+    {
+      throw std::runtime_error( "Failed to allocate depth memory." );
+    }
+
+    vkBindImageMemory( device, m_DepthImage, m_DepthMemory, 0 );
+
+    const VkImageViewCreateInfo viewInfo = {
+      .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .image            = m_DepthImage,
+      .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+      .format           = DepthFormat,
+      .subresourceRange = { .aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT,
+                            .baseMipLevel   = 0,
+                            .levelCount     = 1,
+                            .baseArrayLayer = 0,
+                            .layerCount     = 1 } };
+
+    if ( vkCreateImageView( device, &viewInfo, nullptr, &m_DepthView ) !=
+         VK_SUCCESS )
+    {
+      throw std::runtime_error( "Failed to create depth image view." );
+    }
+  }
+
+  void Renderer::DestroyDepthResources()
+  {
+    const auto device = m_Context.GetDevice();
+
+    if ( m_DepthView != VK_NULL_HANDLE )
+    {
+      vkDestroyImageView( device, m_DepthView, nullptr );
+      m_DepthView = VK_NULL_HANDLE;
+    }
+
+    if ( m_DepthImage != VK_NULL_HANDLE )
+    {
+      vkDestroyImage( device, m_DepthImage, nullptr );
+      m_DepthImage = VK_NULL_HANDLE;
+    }
+
+    if ( m_DepthMemory != VK_NULL_HANDLE )
+    {
+      vkFreeMemory( device, m_DepthMemory, nullptr );
+      m_DepthMemory = VK_NULL_HANDLE;
+    }
   }
 } // namespace Anvil::Gpu

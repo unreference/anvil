@@ -154,10 +154,10 @@ namespace Anvil::Platform
 
         if ( width != window->m_Width || height != window->m_Height )
         {
-          window->m_Width     = width;
-          window->m_Height    = height;
+          window->m_Width  = width;
+          window->m_Height = height;
 
-          if (width > 0 && height > 0)
+          if ( width > 0 && height > 0 )
           {
             window->m_IsResized = true;
           }
@@ -188,6 +188,42 @@ namespace Anvil::Platform
           window->m_KeyState.at( wp ) = false;
         }
 
+        return 0;
+      }
+
+      case WM_LBUTTONDOWN:
+      {
+        window->m_KeyState.at( VK_LBUTTON ) = true;
+        return 0;
+      }
+
+      case WM_LBUTTONUP:
+      {
+        window->m_KeyState.at( VK_LBUTTON ) = false;
+        return 0;
+      }
+
+      case WM_RBUTTONDOWN:
+      {
+        window->m_KeyState.at( VK_RBUTTON ) = true;
+        return 0;
+      }
+
+      case WM_RBUTTONUP:
+      {
+        window->m_KeyState.at( VK_RBUTTON ) = false;
+        return 0;
+      }
+
+      case WM_MBUTTONDOWN:
+      {
+        window->m_KeyState.at( VK_MBUTTON ) = true;
+        return 0;
+      }
+
+      case WM_MBUTTONUP:
+      {
+        window->m_KeyState.at( VK_MBUTTON ) = false;
         return 0;
       }
 

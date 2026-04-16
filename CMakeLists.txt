@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.2.0)
-project(Anvil VERSION 0.4.0 LANGUAGES CXX)
+project(Anvil VERSION 0.5.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,6 +29,11 @@ set(ANVIL_SOURCES
         Source/Platform/Win32Window.cpp
         Source/Gameplay/FreeCamera.cpp
         Source/Core/Game.cpp
+        Source/Gpu/Buffer.cpp
+        Source/Gpu/DescriptorAllocator.cpp
+        Source/Gpu/FrameState.cpp
+        Source/Gpu/Texture.cpp
+        Source/Gpu/StaticMeshPipeline.cpp
 )
 
 set(ANVIL_HEADERS
@@ -45,6 +50,16 @@ set(ANVIL_HEADERS
         Include/Gameplay/FreeCamera.hpp
         Include/Math/Vec2.hpp
         Include/Core/Game.hpp
+        Include/Gpu/Buffer.hpp
+        Include/Gpu/DescriptorAllocator.hpp
+        Include/Gpu/FrameState.hpp
+        Include/Gpu/Texture.hpp
+        Include/Gpu/Checkerboard.hpp
+        Include/Gpu/MaterialState.hpp
+        Source/Gpu/MaterialState.cpp
+        Include/Gpu/StaticVertex.hpp
+        Include/Gpu/Primitives.hpp
+        Include/Gpu/StaticMeshPipeline.hpp
 )
 
 add_executable(Anvil ${ANVIL_SOURCES} ${ANVIL_HEADERS})
@@ -60,6 +75,58 @@ target_include_directories(Anvil PRIVATE
 
 find_package(Vulkan REQUIRED)
 target_link_libraries(Anvil PRIVATE Vulkan::Vulkan)
+
+# --------------------------------------------------------------------------- #
+# Shader compilation (GLSL -> SPIR-V -> embedded C++ header)
+# --------------------------------------------------------------------------- #
+
+if (NOT Vulkan_GLSLC_EXECUTABLE)
+    message(FATAL_ERROR "glslc not found. Install the Vulkan SDK.")
+endif ()
+
+function(anvil_compile_shader SHADER_FILE)
+    get_filename_component(NAME_WE ${SHADER_FILE} NAME_WE)
+    get_filename_component(EXT ${SHADER_FILE} LAST_EXT)
+
+    # ".vert" -> "Vert" for PascalCase array name.
+    string(SUBSTRING "${EXT}" 1 -1 STAGE)
+    string(SUBSTRING "${STAGE}" 0 1 STAGE_FIRST)
+    string(TOUPPER "${STAGE_FIRST}" STAGE_FIRST)
+    string(SUBSTRING "${STAGE}" 1 -1 STAGE_REST)
+    set(ARRAY_NAME "${NAME_WE}${STAGE_FIRST}${STAGE_REST}")
+
+    set(INPUT_GLSL ${CMAKE_SOURCE_DIR}/Resources/Shaders/${SHADER_FILE})
+    set(OUTPUT_SPV ${CMAKE_BINARY_DIR}/Resources/Shaders/${SHADER_FILE}.spv)
+    set(OUTPUT_HPP ${CMAKE_BINARY_DIR}/Generated/Resources/Shaders/${ARRAY_NAME}.hpp)
+
+    # Ensure output directories exist.
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/Resources/Shaders)
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/Generated/Resources/Shaders)
+
+    add_custom_command(
+            OUTPUT ${OUTPUT_SPV}
+            COMMAND ${Vulkan_GLSLC_EXECUTABLE} -o ${OUTPUT_SPV} ${INPUT_GLSL}
+            DEPENDS ${INPUT_GLSL}
+            COMMENT "Compiling ${SHADER_FILE}"
+    )
+
+    add_custom_command(
+            OUTPUT ${OUTPUT_HPP}
+            COMMAND ${CMAKE_COMMAND}
+            -DINPUT_SPV=${OUTPUT_SPV}
+            -DOUTPUT_HPP=${OUTPUT_HPP}
+            -DARRAY_NAME=${ARRAY_NAME}
+            -P ${CMAKE_SOURCE_DIR}/CMake/CompileShader.cmake
+            DEPENDS ${OUTPUT_SPV}
+            COMMENT "Embedding ${SHADER_FILE} -> ${ARRAY_NAME}.hpp"
+    )
+
+    target_sources(Anvil PRIVATE ${OUTPUT_HPP})
+endfunction()
+
+# Shaders
+anvil_compile_shader(Basic.vert)
+anvil_compile_shader(Basic.frag)
 
 # --------------------------------------------------------------------------- #
 # Platform defines
